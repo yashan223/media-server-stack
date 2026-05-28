@@ -21,37 +21,48 @@ fi
 set -a; source "${SCRIPT_DIR}/.env"; set +a
 
 if [ -z "$SSL_EMAIL" ]; then
-    echo -e "${RED}SSL_EMAIL is not set in .env${NC}"
+    echo -e "${RED}SSL_EMAIL is not set in docker/.env${NC}"
     exit 1
 fi
 
 if [ -z "$JELLYFIN_DOMAIN" ] && [ -z "$QBIT_DOMAIN" ] && [ -z "$FILEBROWSER_DOMAIN" ]; then
-    echo -e "${RED}No domains set in .env (JELLYFIN_DOMAIN, QBIT_DOMAIN, FILEBROWSER_DOMAIN)${NC}"
+    echo -e "${RED}No domains set in docker/.env (JELLYFIN_DOMAIN / QBIT_DOMAIN / FILEBROWSER_DOMAIN)${NC}"
     exit 1
 fi
 
 NGINX_CONFD="${SCRIPT_DIR}/nginx-confd"
 mkdir -p "${NGINX_CONFD}"
 
-# ── Issue certs via Certbot (HTTP-01 challenge through nginx) ─────────────────
-echo -e "\n${YELLOW}[1/3] Issuing SSL certificates...${NC}"
+COMPOSE="docker compose -f ${SCRIPT_DIR}/docker-compose.yml --env-file ${SCRIPT_DIR}/.env"
 
+# ── Build domain flags ────────────────────────────────────────────────────────
 DOMAINS=""
 [ -n "$JELLYFIN_DOMAIN" ]    && DOMAINS="$DOMAINS -d $JELLYFIN_DOMAIN"
 [ -n "$QBIT_DOMAIN" ]        && DOMAINS="$DOMAINS -d $QBIT_DOMAIN"
 [ -n "$FILEBROWSER_DOMAIN" ] && DOMAINS="$DOMAINS -d $FILEBROWSER_DOMAIN"
 
-docker compose -f "${SCRIPT_DIR}/docker-compose.yml" --env-file "${SCRIPT_DIR}/.env" \
-    run --rm certbot certonly \
-    --webroot -w /var/www/certbot \
+# ── Stop Nginx to free port 80 for certbot standalone ────────────────────────
+echo -e "\n${YELLOW}[1/4] Stopping Nginx to free port 80...${NC}"
+$COMPOSE stop nginx 2>/dev/null || true
+echo -e "${GREEN}✓ Nginx stopped${NC}"
+
+# ── Issue certificates (standalone — no webroot/nginx needed) ─────────────────
+echo -e "\n${YELLOW}[2/4] Issuing SSL certificates (standalone)...${NC}"
+docker run --rm \
+    -p 80:80 \
+    -v certbot-certs:/etc/letsencrypt \
+    certbot/certbot certonly \
+    --standalone \
     ${DOMAINS} \
     --email "${SSL_EMAIL}" \
-    --agree-tos --non-interactive
+    --agree-tos \
+    --non-interactive \
+    --preferred-challenges http
 
 echo -e "${GREEN}✓ Certificates issued${NC}"
 
-# ── Write per-service nginx configs ──────────────────────────────────────────
-echo -e "\n${YELLOW}[2/3] Writing Nginx virtual hosts...${NC}"
+# ── Write per-service Nginx HTTPS virtual hosts ───────────────────────────────
+echo -e "\n${YELLOW}[3/4] Writing Nginx virtual hosts...${NC}"
 
 write_vhost() {
     local domain="$1"
@@ -64,12 +75,9 @@ server {
 
     ssl_certificate     /etc/letsencrypt/live/${domain}/fullchain.pem;
     ssl_certificate_key /etc/letsencrypt/live/${domain}/privkey.pem;
-
     ssl_protocols       TLSv1.2 TLSv1.3;
     ssl_ciphers         HIGH:!aNULL:!MD5;
-
 ${extra}
-
     location / {
         proxy_pass         ${upstream};
         proxy_set_header   Host              \$host;
@@ -83,22 +91,19 @@ ${extra}
     }
 }
 EOF
+    echo -e "${GREEN}  ✓ ${domain}${NC}"
 }
 
 [ -n "$JELLYFIN_DOMAIN" ]    && write_vhost "$JELLYFIN_DOMAIN"    "http://jellyfin:8096"  ""
-[ -n "$QBIT_DOMAIN" ]        && write_vhost "$QBIT_DOMAIN"        "http://qbittorrent:${QBIT_PORT}" \
-    "    proxy_cookie_path / \"/; Secure\";"
+[ -n "$QBIT_DOMAIN" ]        && write_vhost "$QBIT_DOMAIN"        "http://qbittorrent:8080" \
+    "\n    proxy_cookie_path / \"/; Secure\";"
 [ -n "$FILEBROWSER_DOMAIN" ] && write_vhost "$FILEBROWSER_DOMAIN" "http://filebrowser:80" \
-    "    client_max_body_size 0;"
+    "\n    client_max_body_size 0;"
 
-echo -e "${GREEN}✓ Nginx virtual hosts written${NC}"
-
-# ── Reload nginx ──────────────────────────────────────────────────────────────
-echo -e "\n${YELLOW}[3/3] Reloading Nginx...${NC}"
-docker compose -f "${SCRIPT_DIR}/docker-compose.yml" --env-file "${SCRIPT_DIR}/.env" \
-    exec nginx nginx -s reload
-
-echo -e "${GREEN}✓ Nginx reloaded${NC}"
+# ── Start Nginx back up ───────────────────────────────────────────────────────
+echo -e "\n${YELLOW}[4/4] Starting Nginx with SSL...${NC}"
+$COMPOSE up -d nginx
+echo -e "${GREEN}✓ Nginx started${NC}"
 
 echo -e "\n${GREEN}========================================${NC}"
 echo -e "${GREEN}  SSL Setup Complete!${NC}"
@@ -107,5 +112,5 @@ echo -e "\n${YELLOW}Your services are now available at:${NC}"
 [ -n "$JELLYFIN_DOMAIN" ]    && echo -e "  Jellyfin    → https://${JELLYFIN_DOMAIN}"
 [ -n "$QBIT_DOMAIN" ]        && echo -e "  qBittorrent → https://${QBIT_DOMAIN}"
 [ -n "$FILEBROWSER_DOMAIN" ] && echo -e "  FileBrowser → https://${FILEBROWSER_DOMAIN}"
-echo -e "\n${YELLOW}Certificates auto-renew every 12 hours via the certbot container.${NC}"
-echo -e "\n${GREEN}========================================${NC}"
+echo -e "\n${YELLOW}Certificates renew automatically via the certbot container.${NC}"
+echo -e "${GREEN}========================================${NC}"
