@@ -30,9 +30,9 @@ sudo bash uninstall.sh
 
 | Service | Port | Default Credentials |
 |---------|:----:|---------------------|
-| Jellyfin | 8096 | Setup wizard |
-| qBittorrent | 8080 | admin / adminadmin |
-| FileBrowser | 8585 | admin / adminadmin12 |
+| Jellyfin | 4096 | Setup wizard |
+| qBittorrent | 4080 | admin / adminadmin |
+| FileBrowser | 4085 | admin / adminadmin12 |
 
 ---
 
@@ -69,4 +69,4 @@ journalctl -u jellyfin -f
 
 - Ubuntu 20.04+
 - Root access
-- Ports: 8096, 8080, 8585
+- Ports: 4096, 4080, 4085

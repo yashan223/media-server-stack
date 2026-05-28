@@ -1,40 +1,32 @@
 #!/bin/bash
 
-# Jellyfin, qBittorrent & FileBrowser Auto-Install Script for Ubuntu VPS
-# This script installs Jellyfin, qBittorrent and FileBrowser with shared media directory
-
 set -e
 
-# Make apt non-interactive to avoid prompts during package installation
 export DEBIAN_FRONTEND=noninteractive
 export APT_LISTCHANGES_FRONTEND=none
 
-# Colors for output
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 RED='\033[0;31m'
-NC='\033[0m' # No Color
+NC='\033[0m'
 
-# Configuration
 MEDIA_DIR="/var/media/jellyfin"
 QBIT_DOWNLOAD_DIR="${MEDIA_DIR}/downloads"
 MEDIA_USER="media"
 MEDIA_GROUP="media"
-QBIT_PORT=8080
-JELLYFIN_PORT=8096
-FILEBROWSER_PORT=8585
+QBIT_PORT=4080
+JELLYFIN_PORT=4096
+FILEBROWSER_PORT=4085
 
 echo -e "${GREEN}========================================${NC}"
 echo -e "${GREEN}Jellyfin, qBittorrent & FileBrowser${NC}"
 echo -e "${GREEN}========================================${NC}"
 
-# Check if running as root
 if [ "$EUID" -ne 0 ]; then 
     echo -e "${RED}Please run as root (use sudo)${NC}"
     exit 1
 fi
 
-# Function to wait for apt locks
 wait_for_apt() {
     echo -e "${YELLOW}Checking for apt locks...${NC}"
     while fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1 || \
@@ -45,24 +37,17 @@ wait_for_apt() {
     done
 }
 
-# Update system
 echo -e "\n${YELLOW}[1/8] Updating system packages...${NC}"
 wait_for_apt
 apt-get update --fix-missing
 apt-get -o Dpkg::Options::="--force-confold" upgrade -y
 
-# Install dependencies
 wait_for_apt
 echo -e "\n${YELLOW}[2/8] Installing dependencies...${NC}"
-# Install basic dependencies first (available on minimal systems)
 apt-get -o Dpkg::Options::="--force-confold" install -y ca-certificates curl gnupg
-# Then install additional tools (may not exist on all systems, so allow failure)
 apt-get -o Dpkg::Options::="--force-confold" install -y software-properties-common apt-transport-https || true
 
-# Install Jellyfin
 echo -e "\n${YELLOW}[3/8] Installing Jellyfin...${NC}"
-
-# Add Jellyfin repository
 curl -fsSL https://repo.jellyfin.org/ubuntu/jellyfin_team.gpg.key | gpg --dearmor -o /etc/apt/trusted.gpg.d/jellyfin.gpg
 echo "deb [arch=$( dpkg --print-architecture )] https://repo.jellyfin.org/ubuntu $( lsb_release -c -s ) main" | tee /etc/apt/sources.list.d/jellyfin.list
 wait_for_apt
@@ -70,7 +55,6 @@ wait_for_apt
 apt-get update
 apt-get -o Dpkg::Options::="--force-confold" install -y jellyfin
 
-# Unmask, start and enable Jellyfin
 systemctl unmask jellyfin 2>/dev/null || true
 systemctl start jellyfin
 systemctl enable jellyfin
@@ -87,7 +71,6 @@ apt-get -o Dpkg::Options::="--force-confold" install -y qbittorrent-nox
 
 echo -e "${GREEN}✓ qBittorrent-nox installed successfully${NC}"
 
-# Create media directories
 echo -e "\n${YELLOW}[5/8] Creating media directories...${NC}"
 mkdir -p "${MEDIA_DIR}"
 mkdir -p "${QBIT_DOWNLOAD_DIR}"
@@ -95,7 +78,6 @@ mkdir -p "${MEDIA_DIR}/movies"
 mkdir -p "${MEDIA_DIR}/tv-shows"
 mkdir -p "${MEDIA_DIR}/music"
 
-# Create shared media user and group for all services
 echo -e "\n${YELLOW}[6/8] Configuring shared media user...${NC}"
 if ! getent group "${MEDIA_GROUP}" &>/dev/null; then
     groupadd "${MEDIA_GROUP}"
@@ -109,22 +91,18 @@ else
     echo -e "${YELLOW}User '${MEDIA_USER}' already exists${NC}"
 fi
 
-# Add jellyfin user to media group
 usermod -a -G ${MEDIA_GROUP} jellyfin
+systemctl restart jellyfin
 
-# Set permissions - media user owns everything, group has full access
 chown -R ${MEDIA_USER}:${MEDIA_GROUP} "${MEDIA_DIR}"
 chmod -R 775 "${MEDIA_DIR}"
 
-# Set stricter permissions for downloads directory
 chown -R ${MEDIA_USER}:${MEDIA_GROUP} "${QBIT_DOWNLOAD_DIR}"
 chmod -R 770 "${QBIT_DOWNLOAD_DIR}"
 
-# Create qBittorrent config directory
 QBIT_CONFIG_DIR="/home/${MEDIA_USER}/.config/qBittorrent"
 mkdir -p "${QBIT_CONFIG_DIR}"
 
-# Create qBittorrent systemd service
 cat > /etc/systemd/system/qbittorrent-nox.service <<EOF
 [Unit]
 Description=qBittorrent-nox
@@ -144,11 +122,8 @@ WantedBy=multi-user.target
 EOF
 
 systemctl daemon-reload
-
-# Stop qBittorrent if running to apply config
 systemctl stop qbittorrent-nox 2>/dev/null || true
 
-# Configure qBittorrent settings
 cat > "${QBIT_CONFIG_DIR}/qBittorrent.conf" <<EOF
 [LegalNotice]
 Accepted=true
@@ -160,6 +135,7 @@ WebUI\Password_PBKDF2="@ByteArray(ARQ77eY1NUZaQsuDHbIMCA==:0WMRkYTUWVT9wVvdDtHAj
 Downloads\SavePath=${QBIT_DOWNLOAD_DIR}
 Downloads\TempPath=${QBIT_DOWNLOAD_DIR}/temp
 WebUI\LocalHostAuth=false
+WebUI\HostHeaderValidation=false
 Connection\PortRangeMin=6881
 Connection\UPnP=false
 Bittorrent\MaxRatio=0
@@ -167,9 +143,8 @@ Bittorrent\MaxRatioAction=1
 Bittorrent\MaxSeedingMinutes=0
 EOF
 
-chown -R ${MEDIA_USER}:${MEDIA_GROUP} "${QBIT_CONFIG_DIR}"
+chown -R ${MEDIA_USER}:${MEDIA_GROUP} "/home/${MEDIA_USER}"
 
-# Enable and start services
 echo -e "\n${YELLOW}[7/8] Starting qBittorrent...${NC}"
 systemctl unmask qbittorrent-nox 2>/dev/null || true
 systemctl enable qbittorrent-nox
@@ -177,14 +152,11 @@ systemctl start qbittorrent-nox
 
 echo -e "${GREEN}✓ qBittorrent configured and started${NC}"
 
-# Install FileBrowser
 echo -e "\n${YELLOW}[8/8] Installing FileBrowser...${NC}"
 curl -fsSL https://raw.githubusercontent.com/filebrowser/get/master/get.sh | bash
 
-# Create config directory
 mkdir -p /var/lib/filebrowser
 
-# Create FileBrowser database and config (remove old db to ensure fresh credentials)
 rm -f /var/lib/filebrowser/filebrowser.db
 filebrowser config init -d /var/lib/filebrowser/filebrowser.db
 filebrowser config set -d /var/lib/filebrowser/filebrowser.db --address 0.0.0.0
@@ -192,10 +164,8 @@ filebrowser config set -d /var/lib/filebrowser/filebrowser.db --port ${FILEBROWS
 filebrowser config set -d /var/lib/filebrowser/filebrowser.db --root ${QBIT_DOWNLOAD_DIR}
 filebrowser users add admin adminadmin12 --perm.admin -d /var/lib/filebrowser/filebrowser.db
 
-# Set permissions - FileBrowser config owned by media user
 chown -R ${MEDIA_USER}:${MEDIA_GROUP} /var/lib/filebrowser
 
-# Create FileBrowser systemd service
 cat > /etc/systemd/system/filebrowser.service <<EOF
 [Unit]
 Description=FileBrowser
@@ -205,6 +175,7 @@ After=network.target
 Type=simple
 User=${MEDIA_USER}
 Group=${MEDIA_GROUP}
+UMask=002
 ExecStart=/usr/local/bin/filebrowser -d /var/lib/filebrowser/filebrowser.db
 Restart=on-failure
 RestartSec=5
@@ -219,7 +190,6 @@ systemctl start filebrowser
 
 echo -e "${GREEN}✓ FileBrowser installed and started${NC}"
 
-# Configure firewall if UFW is active
 if command -v ufw &> /dev/null && ufw status | grep -q "Status: active"; then
     echo -e "\n${YELLOW}Configuring firewall...${NC}"
     ufw allow ${JELLYFIN_PORT}/tcp
@@ -229,7 +199,6 @@ if command -v ufw &> /dev/null && ufw status | grep -q "Status: active"; then
     ufw allow 6881:6889/udp
 fi
 
-# Get server IP
 SERVER_IP=$(hostname -I | awk '{print $1}')
 
 echo -e "\n${GREEN}========================================${NC}"
