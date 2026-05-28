@@ -35,6 +35,7 @@ services:
     volumes:
       - qbit-config:/config
       - ${MEDIA_DIR}/downloads:/downloads
+      - ./qbittorrent.conf:/config/qBittorrent/qBittorrent.conf
     networks:
       - media-net
 
