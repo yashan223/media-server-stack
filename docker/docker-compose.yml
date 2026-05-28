@@ -5,7 +5,8 @@ services:
     image: jellyfin/jellyfin:latest
     container_name: jellyfin
     restart: unless-stopped
-    network_mode: host
+    ports:
+      - "${JELLYFIN_PORT}:8096"
     environment:
       - PUID=${PUID}
       - PGID=${PGID}
@@ -16,6 +17,8 @@ services:
       - ${MEDIA_DIR}:/media
     devices:
       - /dev/dri:/dev/dri   # optional hardware transcoding (remove if not needed)
+    networks:
+      - media-net
 
   # ── qBittorrent ─────────────────────────────────────────────────────────────
   qbittorrent:
@@ -26,14 +29,16 @@ services:
       - PUID=${PUID}
       - PGID=${PGID}
       - TZ=${TZ}
-      - WEBUI_PORT=${QBIT_PORT}
+      - WEBUI_PORT=8080
     ports:
-      - "${QBIT_PORT}:${QBIT_PORT}"
+      - "${QBIT_PORT}:8080"
       - "6881:6881/tcp"
       - "6881:6881/udp"
     volumes:
       - qbit-config:/config
       - ${MEDIA_DIR}/downloads:/downloads
+    networks:
+      - media-net
 
   # ── FileBrowser ─────────────────────────────────────────────────────────────
   filebrowser:
@@ -48,6 +53,8 @@ services:
       - filebrowser-db:/database
       - filebrowser-config:/config
     command: --port 80 --database /database/filebrowser.db
+    networks:
+      - media-net
 
   # ── Nginx (reverse proxy + SSL) ─────────────────────────────────────────────
   nginx:
@@ -66,6 +73,8 @@ services:
       - jellyfin
       - qbittorrent
       - filebrowser
+    networks:
+      - media-net
 
   # ── Certbot (SSL certificate management) ────────────────────────────────────
   certbot:
@@ -79,6 +88,12 @@ services:
         certbot renew --webroot -w /var/www/certbot --quiet;
         sleep 12h & wait $${!};
       done"
+    networks:
+      - media-net
+
+networks:
+  media-net:
+    driver: bridge
 
 volumes:
   jellyfin-config:
