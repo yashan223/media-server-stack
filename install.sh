@@ -92,9 +92,22 @@ else
 fi
 
 usermod -a -G ${MEDIA_GROUP} jellyfin
+
+if [ -f /etc/jellyfin/jellyfin.env ]; then
+    sed -i "s/JELLYFIN_PORT=8096/JELLYFIN_PORT=${JELLYFIN_PORT}/g" /etc/jellyfin/jellyfin.env
+fi
+
+if [ -f /etc/default/jellyfin ]; then
+    sed -i "s/JELLYFIN_PORT=8096/JELLYFIN_PORT=${JELLYFIN_PORT}/g" /etc/default/jellyfin
+    if ! grep -q -- "--port" /etc/default/jellyfin; then
+        sed -i 's|JELLYFIN_ARGS="\(.*\)"|JELLYFIN_ARGS="\1 --port='"${JELLYFIN_PORT}"'"|g' /etc/default/jellyfin
+    fi
+fi
+
 if [ -f /etc/jellyfin/system.xml ]; then
     sed -i "s/<HttpServerPortNumber>8096<\/HttpServerPortNumber>/<HttpServerPortNumber>${JELLYFIN_PORT}<\/HttpServerPortNumber>/g" /etc/jellyfin/system.xml
 fi
+
 systemctl restart jellyfin
 
 chown -R ${MEDIA_USER}:${MEDIA_GROUP} "${MEDIA_DIR}"
