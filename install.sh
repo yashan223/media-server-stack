@@ -93,19 +93,26 @@ fi
 
 usermod -a -G ${MEDIA_GROUP} jellyfin
 
-if [ -f /etc/jellyfin/jellyfin.env ]; then
-    sed -i "s/JELLYFIN_PORT=8096/JELLYFIN_PORT=${JELLYFIN_PORT}/g" /etc/jellyfin/jellyfin.env
+# Configure Jellyfin port in network.xml
+if [ -f /etc/jellyfin/network.xml ]; then
+    sed -i "s/<InternalHttpPort>[0-9]*<\/InternalHttpPort>/<InternalHttpPort>${JELLYFIN_PORT}<\/InternalHttpPort>/g" /etc/jellyfin/network.xml
+    sed -i "s/<PublicHttpPort>[0-9]*<\/PublicHttpPort>/<PublicHttpPort>${JELLYFIN_PORT}<\/PublicHttpPort>/g" /etc/jellyfin/network.xml
+else
+    mkdir -p /etc/jellyfin
+    cat > /etc/jellyfin/network.xml <<EOF
+<?xml version="1.0" encoding="utf-8"?>
+<NetworkConfiguration xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+  <InternalHttpPort>${JELLYFIN_PORT}</InternalHttpPort>
+  <PublicHttpPort>${JELLYFIN_PORT}</PublicHttpPort>
+</NetworkConfiguration>
+EOF
 fi
+chown -R jellyfin:jellyfin /etc/jellyfin
 
-if [ -f /etc/default/jellyfin ]; then
-    sed -i "s/JELLYFIN_PORT=8096/JELLYFIN_PORT=${JELLYFIN_PORT}/g" /etc/default/jellyfin
-    if ! grep -q -- "--port" /etc/default/jellyfin; then
-        sed -i 's|JELLYFIN_ARGS="\(.*\)"|JELLYFIN_ARGS="\1 --port='"${JELLYFIN_PORT}"'"|g' /etc/default/jellyfin
-    fi
-fi
-
-if [ -f /etc/jellyfin/system.xml ]; then
-    sed -i "s/<HttpServerPortNumber>8096<\/HttpServerPortNumber>/<HttpServerPortNumber>${JELLYFIN_PORT}<\/HttpServerPortNumber>/g" /etc/jellyfin/system.xml
+if [ -f /var/lib/jellyfin/config/network.xml ]; then
+    sed -i "s/<InternalHttpPort>[0-9]*<\/InternalHttpPort>/<InternalHttpPort>${JELLYFIN_PORT}<\/InternalHttpPort>/g" /var/lib/jellyfin/config/network.xml
+    sed -i "s/<PublicHttpPort>[0-9]*<\/PublicHttpPort>/<PublicHttpPort>${JELLYFIN_PORT}<\/PublicHttpPort>/g" /var/lib/jellyfin/config/network.xml
+    chown -R jellyfin:jellyfin /var/lib/jellyfin/config
 fi
 
 systemctl restart jellyfin
