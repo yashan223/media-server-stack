@@ -53,8 +53,10 @@ docker run --rm \
     ${DOMAINS} \
     --email "${SSL_EMAIL}" \
     --agree-tos \
+    --expand \
     --non-interactive \
     --preferred-challenges http
+
 
 echo -e "${GREEN}✓ Certificates issued${NC}"
 
