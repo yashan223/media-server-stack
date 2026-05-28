@@ -13,30 +13,28 @@ git clone https://github.com/yashan223/xoxo-media.git
 cd xoxo-media
 
 # Edit ports, paths, user IDs
-nano docker/.env
+nano .env
 
 # Start the stack
-sudo bash docker/setup.sh
+sudo bash setup.sh
 ```
 
 ### SSL Setup (Docker)
 
 ```bash
-# Fill JELLYFIN_DOMAIN, QBIT_DOMAIN, FILEBROWSER_DOMAIN, SSL_EMAIL in docker/.env first
-sudo bash docker/setup-ssl.sh
+# Fill JELLYFIN_DOMAIN, QBIT_DOMAIN, FILEBROWSER_DOMAIN, SSL_EMAIL in .env first
+sudo bash setup-ssl.sh
 ```
 
 ### Stop / Remove (Docker)
 
 ```bash
-sudo bash docker/teardown.sh
+sudo bash teardown.sh
 ```
 
 ### Docker Commands
 
 ```bash
-cd docker
-
 # View running containers
 docker compose ps
 
@@ -48,30 +46,6 @@ docker compose restart jellyfin
 
 # Pull latest images
 docker compose pull && docker compose up -d
-```
-
----
-
-## 🖥️ Bare Metal (Legacy)
-
-> Traditional install directly onto the host OS via `apt`.
-
-```bash
-git clone https://github.com/yashan223/xoxo-media.git
-cd xoxo-media
-sudo bash install.sh
-```
-
-### SSL Setup (Bare Metal)
-
-```bash
-sudo bash setup-nginx.sh
-```
-
-### Uninstall (Bare Metal)
-
-```bash
-sudo bash uninstall.sh
 ```
 
 ---

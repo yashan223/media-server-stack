@@ -21,12 +21,12 @@ fi
 set -a; source "${SCRIPT_DIR}/.env"; set +a
 
 if [ -z "$SSL_EMAIL" ]; then
-    echo -e "${RED}SSL_EMAIL is not set in docker/.env${NC}"
+    echo -e "${RED}SSL_EMAIL is not set in .env${NC}"
     exit 1
 fi
 
 if [ -z "$JELLYFIN_DOMAIN" ] && [ -z "$QBIT_DOMAIN" ] && [ -z "$FILEBROWSER_DOMAIN" ]; then
-    echo -e "${RED}No domains set in docker/.env (JELLYFIN_DOMAIN / QBIT_DOMAIN / FILEBROWSER_DOMAIN)${NC}"
+    echo -e "${RED}No domains set in .env (JELLYFIN_DOMAIN / QBIT_DOMAIN / FILEBROWSER_DOMAIN)${NC}"
     exit 1
 fi
 
