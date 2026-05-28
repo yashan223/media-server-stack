@@ -41,16 +41,33 @@ if [ ! -f "${SCRIPT_DIR}/.env" ]; then
 fi
 set -a; source "${SCRIPT_DIR}/.env"; set +a
 
-echo -e "\n${YELLOW}[3/4] Creating media directories...${NC}"
+echo -e "\n${YELLOW}[3/5] Creating media directories...${NC}"
 mkdir -p "${MEDIA_DIR}/downloads"
 mkdir -p "${MEDIA_DIR}/movies"
 mkdir -p "${MEDIA_DIR}/tv-shows"
 mkdir -p "${MEDIA_DIR}/music"
+mkdir -p "${MEDIA_DIR}/.filebrowser"
 chown -R ${PUID}:${PGID} "${MEDIA_DIR}"
 chmod -R 775 "${MEDIA_DIR}"
 echo -e "${GREEN}✓ Directories created at ${MEDIA_DIR}${NC}"
 
-echo -e "\n${YELLOW}[4/4] Starting containers...${NC}"
+echo -e "\n${YELLOW}[4/5] Initializing FileBrowser...${NC}"
+if [ ! -f "${MEDIA_DIR}/.filebrowser/filebrowser.db" ]; then
+    docker run --rm \
+        -v "${MEDIA_DIR}/.filebrowser/filebrowser.db:/database.db" \
+        filebrowser/filebrowser config init
+    docker run --rm \
+        -v "${MEDIA_DIR}/.filebrowser/filebrowser.db:/database.db" \
+        filebrowser/filebrowser config set --address 0.0.0.0 --port 80 --root /srv
+    docker run --rm \
+        -v "${MEDIA_DIR}/.filebrowser/filebrowser.db:/database.db" \
+        filebrowser/filebrowser users add admin adminadmin12 --perm.admin
+    echo -e "${GREEN}✓ FileBrowser initialized (admin / adminadmin12)${NC}"
+else
+    echo -e "${GREEN}✓ FileBrowser database already exists${NC}"
+fi
+
+echo -e "\n${YELLOW}[5/5] Starting containers...${NC}"
 docker compose -f "${SCRIPT_DIR}/docker-compose.yml" --env-file "${SCRIPT_DIR}/.env" up -d
 
 SERVER_IP=$(hostname -I | awk '{print $1}')
@@ -61,7 +78,7 @@ echo -e "${GREEN}========================================${NC}"
 echo -e "\n${YELLOW}Services:${NC}"
 echo -e "  Jellyfin    → http://${SERVER_IP}:${JELLYFIN_PORT}"
 echo -e "  qBittorrent → http://${SERVER_IP}:${QBIT_PORT}  (admin / adminadmin)"
-echo -e "  FileBrowser → http://${SERVER_IP}:${FILEBROWSER_PORT}  (admin / admin)"
+echo -e "  FileBrowser → http://${SERVER_IP}:${FILEBROWSER_PORT}  (admin / adminadmin12)"
 echo -e "\n${YELLOW}To set up SSL with a domain name, run:${NC}"
 echo -e "  sudo bash ${SCRIPT_DIR}/setup-ssl.sh"
 echo -e "\n${YELLOW}Manage containers:${NC}"
