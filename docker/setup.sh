@@ -52,6 +52,11 @@ chmod -R 775 "${MEDIA_DIR}"
 echo -e "${GREEN}✓ Directories created at ${MEDIA_DIR}${NC}"
 
 echo -e "\n${YELLOW}[4/5] Initializing FileBrowser...${NC}"
+if [ -d "${MEDIA_DIR}/.filebrowser/filebrowser.db" ]; then
+    echo -e "${YELLOW}Removing invalid filebrowser.db directory...${NC}"
+    rm -rf "${MEDIA_DIR}/.filebrowser/filebrowser.db"
+fi
+
 if [ ! -f "${MEDIA_DIR}/.filebrowser/filebrowser.db" ]; then
     docker run --rm \
         -v "${MEDIA_DIR}/.filebrowser:/database" \
