@@ -1,0 +1,90 @@
+services:
+
+  # ── Jellyfin ────────────────────────────────────────────────────────────────
+  jellyfin:
+    image: jellyfin/jellyfin:latest
+    container_name: jellyfin
+    restart: unless-stopped
+    network_mode: host
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=${TZ}
+    volumes:
+      - jellyfin-config:/config
+      - jellyfin-cache:/cache
+      - ${MEDIA_DIR}:/media
+    devices:
+      - /dev/dri:/dev/dri   # optional hardware transcoding (remove if not needed)
+
+  # ── qBittorrent ─────────────────────────────────────────────────────────────
+  qbittorrent:
+    image: lscr.io/linuxserver/qbittorrent:latest
+    container_name: qbittorrent
+    restart: unless-stopped
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=${TZ}
+      - WEBUI_PORT=${QBIT_PORT}
+    ports:
+      - "${QBIT_PORT}:${QBIT_PORT}"
+      - "6881:6881/tcp"
+      - "6881:6881/udp"
+    volumes:
+      - qbit-config:/config
+      - ${MEDIA_DIR}/downloads:/downloads
+
+  # ── FileBrowser ─────────────────────────────────────────────────────────────
+  filebrowser:
+    image: filebrowser/filebrowser:latest
+    container_name: filebrowser
+    restart: unless-stopped
+    user: "${PUID}:${PGID}"
+    ports:
+      - "${FILEBROWSER_PORT}:80"
+    volumes:
+      - ${MEDIA_DIR}/downloads:/srv
+      - filebrowser-db:/database
+      - filebrowser-config:/config
+    command: --port 80 --database /database/filebrowser.db
+
+  # ── Nginx (reverse proxy + SSL) ─────────────────────────────────────────────
+  nginx:
+    image: nginx:alpine
+    container_name: nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx-confd:/etc/nginx/conf.d:ro
+      - certbot-webroot:/var/www/certbot:ro
+      - certbot-certs:/etc/letsencrypt:ro
+    depends_on:
+      - jellyfin
+      - qbittorrent
+      - filebrowser
+
+  # ── Certbot (SSL certificate management) ────────────────────────────────────
+  certbot:
+    image: certbot/certbot:latest
+    container_name: certbot
+    volumes:
+      - certbot-webroot:/var/www/certbot
+      - certbot-certs:/etc/letsencrypt
+    entrypoint: >
+      sh -c "trap exit TERM; while :; do
+        certbot renew --webroot -w /var/www/certbot --quiet;
+        sleep 12h & wait $${!};
+      done"
+
+volumes:
+  jellyfin-config:
+  jellyfin-cache:
+  qbit-config:
+  filebrowser-db:
+  filebrowser-config:
+  certbot-webroot:
+  certbot-certs:
