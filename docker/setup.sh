@@ -54,14 +54,16 @@ echo -e "${GREEN}✓ Directories created at ${MEDIA_DIR}${NC}"
 echo -e "\n${YELLOW}[4/5] Initializing FileBrowser...${NC}"
 if [ ! -f "${MEDIA_DIR}/.filebrowser/filebrowser.db" ]; then
     docker run --rm \
-        -v "${MEDIA_DIR}/.filebrowser/filebrowser.db:/database.db" \
-        filebrowser/filebrowser config init
+        -v "${MEDIA_DIR}/.filebrowser:/database" \
+        filebrowser/filebrowser config init -d /database/filebrowser.db
     docker run --rm \
-        -v "${MEDIA_DIR}/.filebrowser/filebrowser.db:/database.db" \
-        filebrowser/filebrowser config set --address 0.0.0.0 --port 80 --root /srv
+        -v "${MEDIA_DIR}/.filebrowser:/database" \
+        filebrowser/filebrowser config set -d /database/filebrowser.db --address 0.0.0.0 --port 80 --root /srv
     docker run --rm \
-        -v "${MEDIA_DIR}/.filebrowser/filebrowser.db:/database.db" \
-        filebrowser/filebrowser users add admin adminadmin12 --perm.admin
+        -v "${MEDIA_DIR}/.filebrowser:/database" \
+        filebrowser/filebrowser users add admin adminadmin12 --perm.admin -d /database/filebrowser.db
+    chown -R ${PUID}:${PGID} "${MEDIA_DIR}/.filebrowser"
+    chmod -R 775 "${MEDIA_DIR}/.filebrowser"
     echo -e "${GREEN}✓ FileBrowser initialized (admin / adminadmin12)${NC}"
 else
     echo -e "${GREEN}✓ FileBrowser database already exists${NC}"
