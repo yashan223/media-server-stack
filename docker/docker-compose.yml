@@ -43,13 +43,11 @@ services:
     image: filebrowser/filebrowser:latest
     container_name: filebrowser
     restart: unless-stopped
-    user: "${PUID}:${PGID}"
     ports:
       - "${FILEBROWSER_PORT}:80"
     volumes:
       - ${MEDIA_DIR}/downloads:/srv
       - filebrowser-db:/database
-      - filebrowser-config:/config
     command: --port 80 --database /database/filebrowser.db
     networks:
       - media-net
@@ -94,5 +92,4 @@ volumes:
   jellyfin-cache:
   qbit-config:
   filebrowser-db:
-  filebrowser-config:
   certbot-certs:
