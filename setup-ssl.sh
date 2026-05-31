@@ -40,22 +40,24 @@ DOMAINS=""
 [ -n "$QBIT_DOMAIN" ]        && DOMAINS="$DOMAINS -d $QBIT_DOMAIN"
 [ -n "$FILEBROWSER_DOMAIN" ] && DOMAINS="$DOMAINS -d $FILEBROWSER_DOMAIN"
 
-echo -e "\n${YELLOW}[1/4] Stopping Nginx to free port 80...${NC}"
-$COMPOSE stop nginx 2>/dev/null || true
-echo -e "${GREEN}✓ Nginx stopped${NC}"
+echo -e "\n${YELLOW}[1/4] Preparing Nginx for ACME challenge...${NC}"
+if [ -d "${NGINX_CONFD}" ] && [ "$(ls -A "${NGINX_CONFD}")" ]; then
+    BACKUP_DIR="${NGINX_CONFD}.backup.$(date +%s)"
+    mv "${NGINX_CONFD}" "${BACKUP_DIR}"
+    mkdir -p "${NGINX_CONFD}"
+    echo -e "${YELLOW}Existing vhosts moved to ${BACKUP_DIR}${NC}"
+fi
+$COMPOSE up -d nginx
+echo -e "${GREEN}✓ Nginx started${NC}"
 
-echo -e "\n${YELLOW}[2/4] Issuing SSL certificates (standalone)...${NC}"
-docker run --rm \
-    -p 80:80 \
-    -v certbot-certs:/etc/letsencrypt \
-    certbot/certbot certonly \
-    --standalone \
+echo -e "\n${YELLOW}[2/4] Issuing SSL certificates (webroot)...${NC}"
+$COMPOSE run --rm certbot certonly \
+    --webroot -w /var/www/certbot \
     ${DOMAINS} \
     --email "${SSL_EMAIL}" \
     --agree-tos \
     --expand \
-    --non-interactive \
-    --preferred-challenges http
+    --non-interactive
 
 
 echo -e "${GREEN}✓ Certificates issued${NC}"
