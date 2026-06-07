@@ -1,12 +1,14 @@
 # XOXO Media Server Stack
 
-Automated setup for **Jellyfin + qBittorrent + FileBrowser** on Ubuntu VPS.
+Automated setup for **Jellyfin + qBittorrent + FileBrowser** with **native Nginx** on Ubuntu VPS.
+- Docker containers for media services
+- Native Nginx with automatic SSL certificates (Let's Encrypt)
 
 ---
 
-## 🐳 Docker (Recommended)
+## 🐳 Quick Start
 
-> One command starts the entire stack. No manual port configuration.
+> One command starts the entire stack. No manual port configuration. Services run in Docker, Nginx runs natively with SSL support.
 
 ```bash
 git clone https://github.com/yashan223/xoxo-media.git
@@ -19,11 +21,12 @@ nano .env
 sudo bash setup.sh
 ```
 
-### SSL Setup (Docker)
+### SSL Setup (Native Nginx)
 
 ```bash
 # Fill JELLYFIN_DOMAIN, QBIT_DOMAIN, FILEBROWSER_DOMAIN, SSL_EMAIL in .env first
-sudo bash setup-ssl.sh
+# This installs Nginx natively and configures SSL without Docker
+sudo bash setup-nginx.sh
 ```
 
 ### Stop / Remove (Docker)

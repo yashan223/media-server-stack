@@ -51,38 +51,7 @@ services:
     networks:
       - media-net
 
-  nginx:
-    image: nginx:alpine
-    container_name: nginx
-    restart: unless-stopped
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./nginx.conf:/etc/nginx/nginx.conf:ro
-      - ./nginx-confd:/etc/nginx/conf.d:ro
-      - certbot-certs:/etc/letsencrypt:ro
-      - certbot-www:/var/www/certbot:ro
-    depends_on:
-      - jellyfin
-      - qbittorrent
-      - filebrowser
-    networks:
-      - media-net
 
-  certbot:
-    image: certbot/certbot:latest
-    container_name: certbot
-    volumes:
-      - certbot-certs:/etc/letsencrypt
-      - certbot-www:/var/www/certbot:rw
-    entrypoint: >
-      sh -c "trap exit TERM; while :; do
-        certbot renew --webroot -w /var/www/certbot --quiet;
-        sleep 12h & wait $${!};
-      done"
-    networks:
-      - media-net
 
 networks:
   media-net:
@@ -92,5 +61,3 @@ volumes:
   jellyfin-config:
   jellyfin-cache:
   qbit-config:
-  certbot-certs:
-  certbot-www:
