@@ -43,6 +43,9 @@ mkdir -p /etc/nginx/conf.d
 echo -e "${GREEN}✓ Directories created${NC}"
 
 echo -e "\n${YELLOW}[3/5] Configuring Nginx for ACME challenge...${NC}"
+rm -f /etc/nginx/sites-enabled/default
+rm -f /etc/nginx/sites-available/default
+
 cat > /etc/nginx/sites-available/default-http <<'EOF'
 server {
     listen 80 default_server;
@@ -60,6 +63,7 @@ server {
 EOF
 
 ln -sf /etc/nginx/sites-available/default-http /etc/nginx/sites-enabled/default-http
+nginx -t
 systemctl restart nginx
 echo -e "${GREEN}✓ Nginx configured for ACME${NC}"
 
@@ -81,13 +85,13 @@ echo -e "${GREEN}✓ Certificates issued${NC}"
 
 echo -e "\n${YELLOW}[5/5] Writing Nginx virtual hosts...${NC}"
 
-# Function to write virtual host configs
+write_vhost() {
     local domain="$1"
     local upstream="$2"
     local extra="$3"
     local cert_domain="$4"
 
-    cat > /etc/nginx/sites-available/$domain <<EOF
+    cat > "/etc/nginx/sites-available/${domain}" <<EOF
 server {
     listen 443 ssl http2;
     listen [::]:443 ssl http2;
@@ -134,12 +138,13 @@ server {
 }
 EOF
 
-    ln -sf /etc/nginx/sites-available/$domain /etc/nginx/sites-enabled/$domain
+    ln -sf "/etc/nginx/sites-available/${domain}" "/etc/nginx/sites-enabled/${domain}"
     echo -e "${GREEN}  ✓ $domain${NC}"
 }
 
 # Create vhosts for each domain
 if [ -n "$JELLYFIN_DOMAIN" ]; then
+    write_vhost "$JELLYFIN_DOMAIN" "http://localhost:${JELLYFIN_PORT}" "" "$CERT_DOMAIN"
 fi
 
 if [ -n "$QBIT_DOMAIN" ]; then
@@ -148,18 +153,15 @@ if [ -n "$QBIT_DOMAIN" ]; then
     proxy_hide_header Referer;
     proxy_hide_header Origin;
     proxy_set_header Referer '';
-    proxy_set_header Origin '';" "$JELLYFIN_DOMAIN"
+    proxy_set_header Origin '';" "$CERT_DOMAIN"
 fi
 
 if [ -n "$FILEBROWSER_DOMAIN" ]; then
     write_vhost "$FILEBROWSER_DOMAIN" "http://localhost:${FILEBROWSER_PORT}" "
-    client_max_body_size 0;" "$JELLYFIN_DOMAIN"
+    client_max_body_size 0;" "$CERT_DOMAIN"
 fi
 
-# Remove default nginx site
-rm -f /etc/nginx/sites-enabled/default
-rm -f /etc/nginx/sites-enabled/default
-nginx -te nginx
+nginx -t
 
 echo -e "\n${GREEN}========================================${NC}"
 echo -e "${GREEN}  Nginx Setup Complete!${NC}"
