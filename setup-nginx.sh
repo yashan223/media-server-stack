@@ -90,6 +90,7 @@ write_vhost() {
     local upstream="$2"
     local extra="$3"
     local cert_domain="$4"
+    local extra_headers="$5"
 
     cat > "/etc/nginx/sites-available/${domain}" <<EOF
 server {
@@ -104,9 +105,9 @@ server {
     ssl_prefer_server_ciphers on;
 
     add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
-    add_header X-Frame-Options "SAMEORIGIN" always;
     add_header X-Content-Type-Options "nosniff" always;
     add_header X-XSS-Protection "1; mode=block" always;
+$extra_headers
 
 $extra
 
@@ -143,8 +144,10 @@ EOF
 }
 
 # Create vhosts for each domain
+# Jellyfin: no X-Frame-Options — Jellyfin's web UI uses iframes internally and
+# setting SAMEORIGIN breaks the interface. All other services get it.
 if [ -n "$JELLYFIN_DOMAIN" ]; then
-    write_vhost "$JELLYFIN_DOMAIN" "http://localhost:${JELLYFIN_PORT}" "" "$CERT_DOMAIN"
+    write_vhost "$JELLYFIN_DOMAIN" "http://localhost:${JELLYFIN_PORT}" "" "$CERT_DOMAIN" ""
 fi
 
 if [ -n "$QBIT_DOMAIN" ]; then
@@ -153,15 +156,18 @@ if [ -n "$QBIT_DOMAIN" ]; then
     proxy_hide_header Referer;
     proxy_hide_header Origin;
     proxy_set_header Referer '';
-    proxy_set_header Origin '';" "$CERT_DOMAIN"
+    proxy_set_header Origin '';" "$CERT_DOMAIN" "
+    add_header X-Frame-Options \"SAMEORIGIN\" always;"
 fi
 
 if [ -n "$FILEBROWSER_DOMAIN" ]; then
     write_vhost "$FILEBROWSER_DOMAIN" "http://localhost:${FILEBROWSER_PORT}" "
-    client_max_body_size 0;" "$CERT_DOMAIN"
+    client_max_body_size 0;" "$CERT_DOMAIN" "
+    add_header X-Frame-Options \"SAMEORIGIN\" always;"
 fi
 
-nginx -t
+nginx -t && systemctl reload nginx
+echo -e "${GREEN}✓ Nginx reloaded — vhosts are live${NC}"
 
 echo -e "\n${GREEN}========================================${NC}"
 echo -e "${GREEN}  Nginx Setup Complete!${NC}"
