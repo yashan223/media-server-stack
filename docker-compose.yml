@@ -27,7 +27,9 @@ services:
       - PUID=${PUID}
       - PGID=${PGID}
       - TZ=${TZ}
-      - WEBUI_PORT=8080
+      - WEBUI_PORT=${QBIT_PORT}
+      - WEBUI_USERNAME=${QBIT_WEBUI_USER}
+      - WEBUI_PASSWORD=${QBIT_WEBUI_PASS}
     ports:
       - "${QBIT_PORT}:8080"
       - "6881:6881/tcp"

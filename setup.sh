@@ -66,10 +66,10 @@ if [ ! -f "${MEDIA_DIR}/.filebrowser/filebrowser.db" ]; then
         filebrowser/filebrowser config set -d /database/filebrowser.db --address 0.0.0.0 --port 80 --root /srv
     docker run --rm \
         -v "${MEDIA_DIR}/.filebrowser:/database" \
-        filebrowser/filebrowser users add admin adminadmin12 --perm.admin -d /database/filebrowser.db
+        filebrowser/filebrowser users add "${FILEBROWSER_USER}" "${FILEBROWSER_PASS}" --perm.admin -d /database/filebrowser.db
     chown -R ${PUID}:${PGID} "${MEDIA_DIR}/.filebrowser"
     chmod -R 775 "${MEDIA_DIR}/.filebrowser"
-    echo -e "${GREEN}✓ FileBrowser initialized (admin / adminadmin12)${NC}"
+    echo -e "${GREEN}✓ FileBrowser initialized (${FILEBROWSER_USER} / ${FILEBROWSER_PASS})${NC}"
 else
     echo -e "${GREEN}✓ FileBrowser database already exists${NC}"
 fi
@@ -84,8 +84,8 @@ echo -e "${GREEN}  Stack is up!${NC}"
 echo -e "${GREEN}========================================${NC}"
 echo -e "\n${YELLOW}Services:${NC}"
 echo -e "  Jellyfin    → http://${SERVER_IP}:${JELLYFIN_PORT}"
-echo -e "  qBittorrent → http://${SERVER_IP}:${QBIT_PORT}  (admin / adminadmin)"
-echo -e "  FileBrowser → http://${SERVER_IP}:${FILEBROWSER_PORT}  (admin / adminadmin12)"
+echo -e "  qBittorrent → http://${SERVER_IP}:${QBIT_PORT}  (${QBIT_WEBUI_USER} / ${QBIT_WEBUI_PASS})"
+echo -e "  FileBrowser → http://${SERVER_IP}:${FILEBROWSER_PORT}  (${FILEBROWSER_USER} / ${FILEBROWSER_PASS})"
 echo -e "\n${YELLOW}To set up SSL with a domain name, run:${NC}"
 echo -e "  sudo bash ${SCRIPT_DIR}/setup-nginx.sh"
 echo -e "\n${YELLOW}Manage containers:${NC}"
