@@ -31,7 +31,7 @@ services:
       - WEBUI_USERNAME=${QBIT_WEBUI_USER}
       - WEBUI_PASSWORD=${QBIT_WEBUI_PASS}
     ports:
-      - "${QBIT_PORT}:8080"
+      - "${QBIT_PORT}:${QBIT_PORT}"
       - "6881:6881/tcp"
       - "6881:6881/udp"
     volumes:
