@@ -41,6 +41,39 @@ if [ ! -f "${SCRIPT_DIR}/.env" ]; then
 fi
 set -a; source "${SCRIPT_DIR}/.env"; set +a
 
+export SCRIPT_DIR
+if [ -f "${SCRIPT_DIR}/qbittorrent.conf" ]; then
+    echo -e "${YELLOW}Configuring qBittorrent credentials...${NC}"
+    if python3 -c '
+import base64, hashlib, os, re
+
+password = os.environ.get("QBIT_WEBUI_PASS")
+username = os.environ.get("QBIT_WEBUI_USER")
+script_dir = os.environ.get("SCRIPT_DIR")
+config_path = os.path.join(script_dir, "qbittorrent.conf") if script_dir else "qbittorrent.conf"
+
+if not password or not username or not os.path.exists(config_path):
+    exit(1)
+
+salt = os.urandom(16)
+dk = hashlib.pbkdf2_hmac("sha512", password.encode(), salt, 100000)
+qbit_hash = f"@ByteArray({base64.b64encode(salt).decode()}:{base64.b64encode(dk).decode()})"
+
+with open(config_path, "r") as f:
+    content = f.read()
+
+content = re.sub(r"(WebUI\\Username=).*", r"\g<1>" + username, content)
+content = re.sub(r"(WebUI\\Password_PBKDF2=).*", r"\g<1>" + "\"" + qbit_hash + "\"", content)
+
+with open(config_path, "w") as f:
+    f.write(content)
+' 2>/dev/null; then
+        echo -e "${GREEN}✓ qBittorrent credentials updated in config${NC}"
+    else
+        echo -e "${YELLOW}Could not update qBittorrent credentials. Defaulting to admin / adminadmin.${NC}"
+    fi
+fi
+
 echo -e "\n${YELLOW}[3/5] Creating media directories...${NC}"
 mkdir -p "${MEDIA_DIR}/downloads"
 mkdir -p "${MEDIA_DIR}/movies"
