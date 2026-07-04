@@ -79,11 +79,11 @@ FILEBROWSER_PORT=4085
 
 # qBittorrent WebUI credentials
 QBIT_WEBUI_USER=admin
-QBIT_WEBUI_PASS=changeme
+QBIT_WEBUI_PASS=changeme12345
 
 # FileBrowser credentials
 FILEBROWSER_USER=admin
-FILEBROWSER_PASS=changeme
+FILEBROWSER_PASS=changeme12345
 
 # Optional: Domains for SSL (leave empty to skip SSL setup)
 JELLYFIN_DOMAIN=jellyfin.example.com

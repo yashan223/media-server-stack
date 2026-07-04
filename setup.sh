@@ -58,15 +58,21 @@ if [ -d "${MEDIA_DIR}/.filebrowser/filebrowser.db" ]; then
 fi
 
 if [ ! -f "${MEDIA_DIR}/.filebrowser/filebrowser.db" ]; then
-    docker run --rm \
-        -v "${MEDIA_DIR}/.filebrowser:/database" \
-        filebrowser/filebrowser config init -d /database/filebrowser.db
-    docker run --rm \
-        -v "${MEDIA_DIR}/.filebrowser:/database" \
-        filebrowser/filebrowser config set -d /database/filebrowser.db --address 0.0.0.0 --port 80 --root /srv
-    docker run --rm \
-        -v "${MEDIA_DIR}/.filebrowser:/database" \
-        filebrowser/filebrowser users add "${FILEBROWSER_USER}" "${FILEBROWSER_PASS}" --perm.admin -d /database/filebrowser.db
+    if ! (
+        docker run --rm \
+            -v "${MEDIA_DIR}/.filebrowser:/database" \
+            filebrowser/filebrowser config init -d /database/filebrowser.db && \
+        docker run --rm \
+            -v "${MEDIA_DIR}/.filebrowser:/database" \
+            filebrowser/filebrowser config set -d /database/filebrowser.db --address 0.0.0.0 --port 80 --root /srv --minimumPasswordLength 6 && \
+        docker run --rm \
+            -v "${MEDIA_DIR}/.filebrowser:/database" \
+            filebrowser/filebrowser users add "${FILEBROWSER_USER}" "${FILEBROWSER_PASS}" --perm.admin -d /database/filebrowser.db
+    ); then
+        echo -e "${RED}FileBrowser initialization failed. Cleaning up database...${NC}"
+        rm -f "${MEDIA_DIR}/.filebrowser/filebrowser.db"
+        exit 1
+    fi
     chown -R ${PUID}:${PGID} "${MEDIA_DIR}/.filebrowser"
     chmod -R 775 "${MEDIA_DIR}/.filebrowser"
     echo -e "${GREEN}✓ FileBrowser initialized (${FILEBROWSER_USER} / ${FILEBROWSER_PASS})${NC}"
