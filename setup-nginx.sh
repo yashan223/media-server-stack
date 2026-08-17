@@ -18,7 +18,16 @@ if [ "$EUID" -ne 0 ]; then
     exit 1
 fi
 
+if [ ! -f "${SCRIPT_DIR}/.env" ]; then
+    echo -e "${RED}.env file not found in ${SCRIPT_DIR}${NC}"
+    exit 1
+fi
+
 set -a; source "${SCRIPT_DIR}/.env"; set +a
+
+JELLYFIN_PORT=${JELLYFIN_PORT:-4096}
+QBIT_PORT=${QBIT_PORT:-4080}
+FILEBROWSER_PORT=${FILEBROWSER_PORT:-4085}
 
 if [ -z "$SSL_EMAIL" ]; then
     echo -e "${RED}SSL_EMAIL is not set in .env${NC}"
@@ -43,8 +52,16 @@ mkdir -p /etc/nginx/conf.d
 echo -e "${GREEN}✓ Directories created${NC}"
 
 echo -e "\n${YELLOW}[3/5] Configuring Nginx for ACME challenge...${NC}"
-rm -f /etc/nginx/sites-enabled/default
-rm -f /etc/nginx/sites-available/default
+# Temporarily clear active site symlinks so nginx -t passes even if certs don't exist yet
+rm -f /etc/nginx/sites-enabled/*
+
+# Create connection upgrade map for WebSocket support
+cat > /etc/nginx/conf.d/websocket_map.conf <<'EOF'
+map $http_upgrade $connection_upgrade {
+    default upgrade;
+    '' close;
+}
+EOF
 
 cat > /etc/nginx/sites-available/default-http <<'EOF'
 server {
@@ -73,24 +90,28 @@ DOMAINS=""
 [ -n "$QBIT_DOMAIN" ]        && DOMAINS="$DOMAINS $QBIT_DOMAIN"
 [ -n "$FILEBROWSER_DOMAIN" ] && DOMAINS="$DOMAINS $FILEBROWSER_DOMAIN"
 
-CERT_DOMAIN=$(echo $DOMAINS | awk '{print $1}')
+CERT_NAME="media-server-stack"
+
 certbot certonly --webroot -w /var/www/certbot \
     $(for domain in $DOMAINS; do echo "-d $domain"; done) \
+    --cert-name "${CERT_NAME}" \
     --email "${SSL_EMAIL}" \
     --agree-tos \
     --expand \
-    --non-interactive
+    --non-interactive \
+    --deploy-hook "systemctl reload nginx"
 
 echo -e "${GREEN}✓ Certificates issued${NC}"
 
 echo -e "\n${YELLOW}[5/5] Writing Nginx virtual hosts...${NC}"
+# Remove temporary HTTP default site symlink
+rm -f /etc/nginx/sites-enabled/default-http
 
 write_vhost() {
     local domain="$1"
     local upstream="$2"
     local extra="$3"
-    local cert_domain="$4"
-    local extra_headers="$5"
+    local extra_headers="$4"
 
     cat > "/etc/nginx/sites-available/${domain}" <<EOF
 server {
@@ -98,11 +119,13 @@ server {
     listen [::]:443 ssl http2;
     server_name $domain;
 
-    ssl_certificate /etc/letsencrypt/live/$cert_domain/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/$cert_domain/privkey.pem;
+    ssl_certificate /etc/letsencrypt/live/${CERT_NAME}/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/${CERT_NAME}/privkey.pem;
     ssl_protocols TLSv1.2 TLSv1.3;
     ssl_ciphers HIGH:!aNULL:!MD5;
     ssl_prefer_server_ciphers on;
+    ssl_session_cache shared:SSL:10m;
+    ssl_session_timeout 1d;
 
     add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
     add_header X-Content-Type-Options "nosniff" always;
@@ -117,9 +140,10 @@ $extra
         proxy_set_header X-Real-IP \$remote_addr;
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_set_header X-Forwarded-Host \$host;
         proxy_http_version 1.1;
         proxy_set_header Upgrade \$http_upgrade;
-        proxy_set_header Connection "upgrade";
+        proxy_set_header Connection \$connection_upgrade;
         proxy_buffering off;
     }
 }
@@ -134,7 +158,7 @@ server {
     }
 
     location / {
-        return 301 https://\$server_name\$request_uri;
+        return 301 https://\$host\$request_uri;
     }
 }
 EOF
@@ -144,25 +168,19 @@ EOF
 }
 
 # Create vhosts for each domain
-# Jellyfin: no X-Frame-Options — Jellyfin's web UI uses iframes internally and
-# setting SAMEORIGIN breaks the interface. All other services get it.
 if [ -n "$JELLYFIN_DOMAIN" ]; then
-    write_vhost "$JELLYFIN_DOMAIN" "http://localhost:${JELLYFIN_PORT}" "" "$CERT_DOMAIN" ""
+    write_vhost "$JELLYFIN_DOMAIN" "http://localhost:${JELLYFIN_PORT}" "" ""
 fi
 
 if [ -n "$QBIT_DOMAIN" ]; then
     write_vhost "$QBIT_DOMAIN" "http://localhost:${QBIT_PORT}" "
-    proxy_cookie_path / \"/; Secure\";
-    proxy_hide_header Referer;
-    proxy_hide_header Origin;
-    proxy_set_header Referer '';
-    proxy_set_header Origin '';" "$CERT_DOMAIN" "
+    proxy_cookie_path / \"/; Secure\";" "
     add_header X-Frame-Options \"SAMEORIGIN\" always;"
 fi
 
 if [ -n "$FILEBROWSER_DOMAIN" ]; then
     write_vhost "$FILEBROWSER_DOMAIN" "http://localhost:${FILEBROWSER_PORT}" "
-    client_max_body_size 0;" "$CERT_DOMAIN" "
+    client_max_body_size 0;" "
     add_header X-Frame-Options \"SAMEORIGIN\" always;"
 fi
 
@@ -185,3 +203,4 @@ echo -e "  Sites: /etc/nginx/sites-available/${NC}"
 echo -e "  Test config: sudo nginx -t${NC}"
 echo -e "  Restart: sudo systemctl restart nginx${NC}"
 echo -e "${GREEN}========================================${NC}"
+
